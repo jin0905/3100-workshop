@@ -4,14 +4,14 @@ import time
 import multiprocessing
 
 CHECKPOINT_FILE = "checkpoint.pkl"
-lock = multiprocessing.Lock()  # Ensures safe checkpointing
+lock = multiprocessing.Lock()  
 
 def save_checkpoint(state):
     """Save the current state to a checkpoint file with a lock to avoid race conditions."""
     with lock:
         try:
             existing_state = load_checkpoint()
-            existing_state.update(state)  # Merge updates without losing other processes' progress
+            existing_state.update(state)  
         except FileNotFoundError:
             existing_state = state
         
@@ -48,11 +48,10 @@ def worker(process_id):
         print(f"Process {process_id} processing task {state[process_id]['task_count']}")
 
         save_checkpoint(state)
-        time.sleep(1)  # Simulate time-consuming work
-
+        time.sleep(1) 
 if __name__ == "__main__":
     processes = []
-    for i in range(3):  # Create 3 worker processes
+    for i in range(3):  
         p = multiprocessing.Process(target=worker, args=(i,))
         processes.append(p)
         p.start()
