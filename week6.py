@@ -2,40 +2,49 @@ import pickle
 import random
 import time
 import multiprocessing
+import os
 
-CHECKPOINT_FILE = "checkpoint.pkl"
-lock = multiprocessing.Lock()  
+# Constants for checkpoint files
+CHECKPOINT_DIR = "checkpoints"
+if not os.path.exists(CHECKPOINT_DIR):
+    os.makedirs(CHECKPOINT_DIR)
 
-def save_checkpoint(state):
+# A lock to ensure checkpointing is thread-safe
+lock = multiprocessing.Lock()
+
+def save_checkpoint(state, process_id):
     """Save the current state to a checkpoint file with a lock to avoid race conditions."""
     with lock:
         try:
-            existing_state = load_checkpoint()
-            existing_state.update(state)  
+            # Read the existing state
+            existing_state = load_checkpoint(process_id)
+            existing_state.update(state)  # Update the process state with the new state
         except FileNotFoundError:
             existing_state = state
         
-        with open(CHECKPOINT_FILE, "wb") as f:
+        checkpoint_file = os.path.join(CHECKPOINT_DIR, f"checkpoint_{process_id}.pkl")
+        with open(checkpoint_file, "wb") as f:
             pickle.dump(existing_state, f)
-        print(f"Checkpoint saved: {existing_state}")
+        print(f"Process {process_id}: Checkpoint saved.")
 
-def load_checkpoint():
-    """Load the last saved checkpoint."""
+def load_checkpoint(process_id):
+    """Load the last saved checkpoint for a specific process."""
+    checkpoint_file = os.path.join(CHECKPOINT_DIR, f"checkpoint_{process_id}.pkl")
     try:
-        with open(CHECKPOINT_FILE, "rb") as f:
+        with open(checkpoint_file, "rb") as f:
             state = pickle.load(f)
-        print(f"Restored from checkpoint: {state}")
+        print(f"Process {process_id}: Restored from checkpoint.")
         return state
     except FileNotFoundError:
-        print("No checkpoint found. Starting fresh.")
-        return {0: {"task_count": 0}, 1: {"task_count": 0}, 2: {"task_count": 0}}
+        print(f"Process {process_id}: No checkpoint found. Starting fresh.")
+        return {"task_count": 0}
 
 def worker(process_id):
     """Simulate a process performing a task with checkpointing and failure recovery."""
     while True:
-        state = load_checkpoint()  # Always load the latest checkpoint
+        state = load_checkpoint(process_id)  # Always load the latest checkpoint
 
-        if state[process_id]["task_count"] >= 10:
+        if state["task_count"] >= 10:
             print(f"Process {process_id} completed all tasks successfully!")
             break
 
@@ -44,17 +53,21 @@ def worker(process_id):
             continue  # Restart loop with reloaded state
 
         # Perform the task
-        state[process_id]["task_count"] += 1
-        print(f"Process {process_id} processing task {state[process_id]['task_count']}")
+        state["task_count"] += 1
+        print(f"Process {process_id} processing task {state['task_count']}")
 
-        save_checkpoint(state)
-        time.sleep(1) 
+        save_checkpoint(state, process_id)
+        time.sleep(1)  # Simulate time taken for task
+
 if __name__ == "__main__":
     processes = []
+    
+    # Start 3 worker processes
     for i in range(3):  
         p = multiprocessing.Process(target=worker, args=(i,))
         processes.append(p)
         p.start()
     
+    # Wait for all processes to finish
     for p in processes:
         p.join()
